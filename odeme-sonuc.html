@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <script type="text/javascript">
+  (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","w4svk7xnzn");
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odeme Sonucu | Punch Kirlent - Tela Home</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'DM Sans',sans-serif; color:#3A3530; background:#FDFBF7; min-height:100vh; display:flex; flex-direction:column; }
+    .container { max-width:600px; margin:0 auto; padding:0 20px; }
+    .header { background:#FDFBF7; padding:16px 0; border-bottom:1px solid #eee; }
+    .header-inner { display:flex; align-items:center; justify-content:space-between; max-width:1200px; margin:0 auto; padding:0 20px; }
+    .logo img { height:36px; }
+    .result-page { flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:40px 20px; }
+    h1 { font-family:'Playfair Display',serif; font-size:1.6rem; margin:12px 0; }
+    .details { background:#f8f5f0; border-radius:12px; padding:20px; margin:20px 0; text-align:left; }
+    .details p { margin:6px 0; font-size:0.95rem; }
+    .btn { display:inline-block; padding:12px 28px; border-radius:8px; font-size:0.95rem; text-decoration:none; margin-top:12px; }
+    .btn-primary { background:#6B5740; color:#fff; }
+    .btn-outline { border:1px solid #6B5740; color:#6B5740; }
+    .footer { background:#3A3530; color:#C4B8A8; padding:24px 0; text-align:center; font-size:0.85rem; margin-top:auto; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo"><img src="logo.svg" alt="Tela Home"></a>
+      <a href="/" style="color:#6B5740;text-decoration:none;font-size:0.9rem;">Ana Sayfa</a>
+    </div>
+  </header>
+
+  <section class="result-page">
+    <div class="container">
+      <div id="resultLoading">
+        <div style="font-size:2rem;margin-bottom:16px;">&#8987;</div>
+        <h1>Odeme Sonucu Kontrol Ediliyor...</h1>
+        <p>Lutfen bekleyin.</p>
+      </div>
+      <div id="resultSuccess" style="display:none;">
+        <div style="font-size:3rem;margin-bottom:16px;">&#10004;</div>
+        <h1 style="color:#27ae60;">Odeme Basarili!</h1>
+        <p style="font-size:1.1rem;margin:16px 0;">Siparisiniz basariyla alindi. Tesekkur ederiz!</p>
+        <div class="details" id="paymentDetails"></div>
+        <a href="/" class="btn btn-primary">Alisverise Devam Et</a>
+      </div>
+      <div id="resultFail" style="display:none;">
+        <div style="font-size:3rem;margin-bottom:16px;">&#10060;</div>
+        <h1 style="color:#e74c3c;">Odeme Basarisiz</h1>
+        <p style="font-size:1.1rem;margin:16px 0;" id="failMessage">Odeme islemi tamamlanamadi.</p>
+        <a href="/" class="btn btn-primary">Tekrar Dene</a>
+        <a href="/" class="btn btn-outline" style="margin-left:8px;">Ana Sayfa</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>&copy; 2026 Tela Home. Tum haklari saklidir.</p>
+  </footer>
+
+  <script>
+    const WORKER_URL = 'https://telahome-pay.laleerkaslan.workers.dev';
+
+    (async function() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!token) {
+        document.getElementById('resultLoading').style.display = 'none';
+        document.getElementById('resultFail').style.display = 'block';
+        document.getElementById('failMessage').textContent = 'Odeme bilgisi bulunamadi.';
+        return;
+      }
+
+      try {
+        const res = await fetch(WORKER_URL + '/check-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token })
+        });
+        const data = await res.json();
+
+        document.getElementById('resultLoading').style.display = 'none';
+
+        if (data.status === 'SUCCESS') {
+          document.getElementById('resultSuccess').style.display = 'block';
+          let details = '';
+          if (data.paymentId) details += '<p><strong>Odeme No:</strong> ' + data.paymentId + '</p>';
+          if (data.paidPrice) details += '<p><strong>Odenen Tutar:</strong> ' + parseFloat(data.paidPrice).toLocaleString('tr-TR') + ' TL</p>';
+          if (data.cardType) details += '<p><strong>Kart Tipi:</strong> ' + data.cardType + '</p>';
+          if (data.lastFourDigits) details += '<p><strong>Kart Sonu:</strong> ****' + data.lastFourDigits + '</p>';
+          if (data.installment && data.installment > 1) details += '<p><strong>Taksit:</strong> ' + data.installment + '</p>';
+          document.getElementById('paymentDetails').innerHTML = details;
+          // Sepeti temizle
+          localStorage.removeItem('punchCart');
+        } else {
+          document.getElementById('resultFail').style.display = 'block';
+        }
+      } catch (err) {
+        document.getElementById('resultLoading').style.display = 'none';
+        document.getElementById('resultFail').style.display = 'block';
+        document.getElementById('failMessage').textContent = 'Baglanti hatasi. Lutfen daha sonra tekrar deneyin.';
+      }
+    })();
+  </script>
+</body>
+</html>
