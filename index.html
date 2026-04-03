@@ -1184,6 +1184,20 @@
     </div>
   </section>
 
+  <!-- Campaign Banner -->
+  <section style="padding:0 0 0;" id="campaign">
+    <div class="container">
+      <div class="fade-up" style="background:linear-gradient(135deg,var(--earth-dark),var(--earth));border-radius:16px;padding:28px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:0;">
+        <div>
+          <span style="display:inline-block;background:rgba(255,255,255,0.2);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;margin-bottom:8px;">KAMPANYA</span>
+          <h3 style="font-family:'Playfair Display',serif;color:#fff;font-size:1.5rem;margin:0;">4 Al 3 Öde!</h3>
+          <p style="color:rgba(255,255,255,0.85);font-size:0.95rem;margin:6px 0 0;">Sepetinize 4 veya daha fazla kırlent ekleyin, en ucuz ürün <strong>hediye!</strong></p>
+        </div>
+        <a href="#products" style="background:#fff;color:var(--earth-dark);padding:12px 28px;border-radius:10px;font-weight:600;text-decoration:none;font-size:0.95rem;white-space:nowrap;">Hemen Seç →</a>
+      </div>
+    </div>
+  </section>
+
   <!-- Products -->
   <section class="products" id="products">
     <div class="container">
@@ -1295,6 +1309,11 @@
       <div class="cart-empty" id="cartEmpty">Sepetiniz boş</div>
     </div>
     <div class="cart-footer" id="cartFooter" style="display:none">
+      <div id="cartCampaignMsg" style="display:none;background:linear-gradient(135deg,var(--earth-dark),var(--earth));color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:10px;font-size:0.85rem;text-align:center;"></div>
+      <div id="cartDiscountRow" style="display:none;justify-content:space-between;font-size:0.9rem;margin-bottom:4px;color:var(--sage);">
+        <span>4 Al 3 Öde İndirimi</span>
+        <span id="cartDiscount">0 TL</span>
+      </div>
       <div class="cart-total">
         <span class="cart-total-label">Toplam</span>
         <span class="cart-total-price" id="cartTotal">0 TL</span>
@@ -1566,6 +1585,24 @@
       badge.classList.toggle('show', total > 0);
     }
 
+    // ─── 4 AL 3 ÖDE KAMPANYA HESAPLAMASI ───
+    function calculateCampaignDiscount() {
+      // Tüm ürünleri birim fiyata göre genişlet
+      let allItems = [];
+      cart.forEach(c => {
+        const p = products.find(pr => pr.id === c.id);
+        for (let i = 0; i < c.qty; i++) allItems.push(p.price);
+      });
+      const totalQty = allItems.length;
+      if (totalQty < 4) return { discount: 0, totalQty };
+      // En ucuz ürünleri bedava yap: her 4 üründe 1 bedava
+      allItems.sort((a, b) => a - b); // ucuzdan pahalıya
+      const freeCount = Math.floor(totalQty / 4);
+      let discount = 0;
+      for (let i = 0; i < freeCount; i++) discount += allItems[i];
+      return { discount, totalQty, freeCount };
+    }
+
     function renderCart() {
       const itemsEl = document.getElementById('cartItems');
       const emptyEl = document.getElementById('cartEmpty');
@@ -1582,11 +1619,11 @@
       footerEl.style.display = 'block';
 
       let html = '';
-      let total = 0;
+      let subtotal = 0;
 
       cart.forEach(c => {
         const p = products.find(pr => pr.id === c.id);
-        total += p.price * c.qty;
+        subtotal += p.price * c.qty;
         html += `
           <div class="cart-item">
             <img src="${p.image}" alt="${p.name}">
@@ -1607,6 +1644,28 @@
       itemsEl.querySelectorAll('.cart-item').forEach(el => el.remove());
       itemsEl.insertAdjacentHTML('beforeend', html);
 
+      // Kampanya hesapla
+      const { discount, totalQty } = calculateCampaignDiscount();
+      const total = subtotal - discount;
+
+      const campaignMsg = document.getElementById('cartCampaignMsg');
+      const discountRow = document.getElementById('cartDiscountRow');
+
+      if (discount > 0) {
+        campaignMsg.style.display = 'block';
+        campaignMsg.innerHTML = '🎉 <strong>4 Al 3 Öde</strong> uygulandı! ' + discount.toLocaleString('tr-TR') + ' TL indirim kazandınız.';
+        discountRow.style.display = 'flex';
+        document.getElementById('cartDiscount').textContent = '-' + discount.toLocaleString('tr-TR') + ' TL';
+      } else {
+        discountRow.style.display = 'none';
+        if (totalQty > 0 && totalQty < 4) {
+          campaignMsg.style.display = 'block';
+          campaignMsg.innerHTML = '💡 <strong>' + (4 - totalQty) + ' ürün daha</strong> ekleyin, 4 Al 3 Öde fırsatından yararlanın!';
+        } else {
+          campaignMsg.style.display = 'none';
+        }
+      }
+
       document.getElementById('cartTotal').textContent = total.toLocaleString('tr-TR') + ' TL';
 
       // Build WhatsApp checkout message
@@ -1615,6 +1674,7 @@
         const p = products.find(pr => pr.id === c.id);
         msg += `• ${p.name} x${c.qty} — ${p.price * c.qty} TL\n`;
       });
+      if (discount > 0) msg += `\n🎉 4 Al 3 Öde İndirimi: -${discount.toLocaleString('tr-TR')} TL`;
       msg += `\nToplam: ${total.toLocaleString('tr-TR')} TL`;
 
       document.getElementById('checkoutBtn').href =
@@ -1674,12 +1734,17 @@
       closeCart();
       const modal = document.getElementById('paymentModal');
       const summary = document.getElementById('modalOrderSummary');
-      let html = '', total = 0;
+      let html = '', subtotal = 0;
       cart.forEach(c => {
         const p = products.find(pr => pr.id === c.id);
-        total += p.price * c.qty;
+        subtotal += p.price * c.qty;
         html += `<div>${p.name} x${c.qty} = ${(p.price * c.qty).toLocaleString('tr-TR')} TL</div>`;
       });
+      const { discount } = calculateCampaignDiscount();
+      const total = subtotal - discount;
+      if (discount > 0) {
+        html += `<div style="color:var(--sage,#8A9A7B);margin-top:6px;">🎉 4 Al 3 Öde İndirimi: -${discount.toLocaleString('tr-TR')} TL</div>`;
+      }
       html += `<div style="font-weight:700;margin-top:8px;border-top:1px solid #ddd;padding-top:8px;">Toplam: ${total.toLocaleString('tr-TR')} TL</div>`;
       summary.innerHTML = html;
       // Reset form
@@ -1713,9 +1778,14 @@
         zipCode: document.getElementById('pBuyerZip').value.trim() || '06000'
       };
 
+      // 4 Al 3 Öde: İndirimi oransal olarak tüm ürünlere dağıt
+      const { discount } = calculateCampaignDiscount();
+      const subtotalBeforeDiscount = cart.reduce((s, c) => s + products.find(pr => pr.id === c.id).price * c.qty, 0);
+      const discountRatio = discount > 0 ? (subtotalBeforeDiscount - discount) / subtotalBeforeDiscount : 1;
+
       const basketItems = cart.map(c => {
         const p = products.find(pr => pr.id === c.id);
-        return { id: p.id, name: p.name, price: p.price, qty: c.qty };
+        return { id: p.id, name: p.name, price: Math.round(p.price * discountRatio * 100) / 100, qty: c.qty };
       });
 
       try {
