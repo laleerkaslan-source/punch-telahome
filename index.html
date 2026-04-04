@@ -18,6 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script src="https://telahome.store/shared-cart.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -1479,14 +1480,14 @@
       }
     ];
 
-    // ─── CART STATE ───
-    let cart = JSON.parse(localStorage.getItem('punchCart') || '[]');
+    // ─── CART STATE (shared across all telahome.store subdomains) ───
+    let cart = []; // Full items: [{id, name, price, image, qty, size, source}]
 
     // ─── RENDER PRODUCTS ───
     function renderProducts() {
       const grid = document.getElementById('productsGrid');
       grid.innerHTML = products.map(p => {
-        const inCart = cart.find(c => c.id === p.id);
+        const inCart = cart.find(c => c.id === p.id && c.source === 'punch');
         const cartQty = inCart ? inCart.qty : 0;
         const remaining = p.stock - cartQty;
         const stockLabel = remaining <= 0 ? 'Tükendi' : remaining <= 3 ? `Son ${remaining} adet` : `Stokta: ${remaining} adet`;
@@ -1514,69 +1515,69 @@
       initObserver();
     }
 
-    // ─── CART FUNCTIONS ───
+    // ─── CART FUNCTIONS (SharedCart bridge) ───
     function addToCart(id) {
-      const product = products.find(p => p.id === id);
-      const inCart = cart.find(c => c.id === id);
+      const p = products.find(pr => pr.id === id);
+      const inCart = cart.find(c => c.id === id && c.source === 'punch');
       const currentQty = inCart ? inCart.qty : 0;
-
-      if (currentQty >= product.stock) return;
+      if (currentQty >= p.stock) return;
 
       if (inCart) {
         inCart.qty++;
+        SharedCart.updateItem(id, 'punch', inCart.qty);
       } else {
-        cart.push({ id, qty: 1 });
+        const item = { id: p.id, name: p.name, price: p.price, image: p.image, qty: 1, source: 'punch' };
+        cart.push(item);
+        SharedCart.addItem(item);
       }
 
-      saveCart();
+      updateBadge();
       renderProducts();
       renderCart();
-      showToast(product.name + ' sepete eklendi!');
+      showToast(p.name + ' sepete eklendi!');
     }
 
-    function updateQty(id, delta) {
-      const item = cart.find(c => c.id === id);
+    function updateQty(id, source, delta) {
+      const item = cart.find(c => c.id === id && c.source === source);
       if (!item) return;
 
-      const product = products.find(p => p.id === id);
       item.qty += delta;
-
       if (item.qty <= 0) {
-        cart = cart.filter(c => c.id !== id);
-      } else if (item.qty > product.stock) {
-        item.qty = product.stock;
+        cart = cart.filter(c => !(c.id === id && c.source === source));
+        SharedCart.removeItem(id, source);
+      } else {
+        SharedCart.updateItem(id, source, item.qty);
       }
 
-      saveCart();
+      updateBadge();
       renderProducts();
       renderCart();
     }
 
-    function saveCart() {
-      localStorage.setItem('punchCart', JSON.stringify(cart));
+    function updateBadge() {
       const total = cart.reduce((s, c) => s + c.qty, 0);
       const badge = document.getElementById('cartCount');
       badge.textContent = total;
       badge.classList.toggle('show', total > 0);
     }
 
-    // ─── 4 AL 3 ÖDE KAMPANYA HESAPLAMASI ───
+    // ─── 4 AL 3 ÖDE KAMPANYA HESAPLAMASI (sadece punch ürünleri) ───
     function calculateCampaignDiscount() {
-      // Tüm ürünleri birim fiyata göre genişlet
+      const punchItems = cart.filter(c => c.source === 'punch');
       let allItems = [];
-      cart.forEach(c => {
-        const p = products.find(pr => pr.id === c.id);
-        for (let i = 0; i < c.qty; i++) allItems.push(p.price);
+      punchItems.forEach(c => {
+        for (let i = 0; i < c.qty; i++) allItems.push(c.price);
       });
       const totalQty = allItems.length;
       if (totalQty < 4) return { discount: 0, totalQty };
-      // En ucuz ürünleri bedava yap: her 4 üründe 1 bedava
-      allItems.sort((a, b) => a - b); // ucuzdan pahalıya
+      allItems.sort((a, b) => a - b);
       const freeCount = Math.floor(totalQty / 4);
       let discount = 0;
       for (let i = 0; i < freeCount; i++) discount += allItems[i];
       return { discount, totalQty, freeCount };
     }
+
+    const sourceLabels = { masaortu: 'Masa Örtüsü', punch: 'Kırlent', alez: 'Alez' };
 
     function renderCart() {
       const itemsEl = document.getElementById('cartItems');
@@ -1597,29 +1598,28 @@
       let subtotal = 0;
 
       cart.forEach(c => {
-        const p = products.find(pr => pr.id === c.id);
-        subtotal += p.price * c.qty;
+        subtotal += (c.price || 0) * c.qty;
+        const sourceTag = c.source && c.source !== 'punch' ? `<span style="font-size:0.7rem;background:var(--earth-light,#e8ddd0);color:var(--earth);padding:1px 6px;border-radius:3px;">${sourceLabels[c.source] || c.source}</span>` : '';
         html += `
           <div class="cart-item">
-            <img src="${p.image}" alt="${p.name}">
+            <img src="${c.image || ''}" alt="${c.name}" onerror="this.style.display='none'">
             <div class="cart-item-info">
-              <div class="cart-item-name">${p.name}</div>
-              <div class="cart-item-price">${p.price * c.qty} TL</div>
+              <div class="cart-item-name">${c.name} ${sourceTag}</div>
+              <div class="cart-item-price">${((c.price || 0) * c.qty).toLocaleString('tr-TR')} TL</div>
             </div>
             <div class="cart-item-qty">
-              <button class="qty-btn" onclick="updateQty('${c.id}', -1)">−</button>
+              <button class="qty-btn" onclick="updateQty('${c.id}', '${c.source}', -1)">&#8722;</button>
               <span class="qty-num">${c.qty}</span>
-              <button class="qty-btn" onclick="updateQty('${c.id}', 1)" ${c.qty >= p.stock ? 'disabled' : ''}>+</button>
+              <button class="qty-btn" onclick="updateQty('${c.id}', '${c.source}', 1)">+</button>
             </div>
           </div>
         `;
       });
 
-      // Remove old cart items, keep empty div
       itemsEl.querySelectorAll('.cart-item').forEach(el => el.remove());
       itemsEl.insertAdjacentHTML('beforeend', html);
 
-      // Kampanya hesapla
+      // Kampanya hesapla (sadece punch ürünleri)
       const { discount, totalQty } = calculateCampaignDiscount();
       const total = subtotal - discount;
 
@@ -1643,11 +1643,9 @@
 
       document.getElementById('cartTotal').textContent = total.toLocaleString('tr-TR') + ' TL';
 
-      // Build WhatsApp checkout message
-      let msg = 'Merhaba, aşağıdaki punch kırlentleri sipariş vermek istiyorum:\n\n';
+      let msg = 'Merhaba, aşağıdaki ürünleri sipariş vermek istiyorum:\n\n';
       cart.forEach(c => {
-        const p = products.find(pr => pr.id === c.id);
-        msg += `• ${p.name} x${c.qty} — ${p.price * c.qty} TL\n`;
+        msg += `\u2022 ${c.name} x${c.qty} \u2014 ${((c.price || 0) * c.qty).toLocaleString('tr-TR')} TL\n`;
       });
       if (discount > 0) msg += `\n🎉 4 Al 3 Öde İndirimi: -${discount.toLocaleString('tr-TR')} TL`;
       msg += `\nToplam: ${total.toLocaleString('tr-TR')} TL`;
@@ -1704,24 +1702,19 @@
 
     // ─── GO TO MAIN CART ───
     function goToMainCart() {
-      const cartData = cart.map(c => {
-        const p = products.find(pr => pr.id === c.id);
-        return {
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          image: p.image,
-          qty: c.qty,
-          source: 'punch'
-        };
-      });
-      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(cartData))));
-      window.location.href = 'https://telahome.store/sepet.html?import=' + encodeURIComponent(encoded);
+      window.location.href = 'https://telahome.store/sepet.html';
     }
 
-    // ─── INIT ───
+    // ─── INIT (load shared cart then render) ───
+    SharedCart.init(function() {
+      SharedCart.getItems().then(function(items) {
+        cart = items || [];
+        updateBadge();
+        renderProducts();
+        renderCart();
+      });
+    });
     renderProducts();
-    saveCart();
     renderCart();
     initObserver();
   </script>
