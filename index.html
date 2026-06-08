@@ -6,6 +6,10 @@
   <script type="text/javascript">
   (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","w4svk7xnzn");
   </script>
+  <!-- Meta Pixel Code -->
+  <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','1263032575973750');fbq('track','PageView');</script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1263032575973750&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel Code -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Punch Kırlent Modelleri | Bursa Keteni %100 Pamuk ✓ Tela Home</title>
@@ -1648,6 +1652,16 @@
           items: [{ item_id: p.id, item_name: p.name, price: p.price, quantity: 1, item_category: 'Punch Kırlent' }]
         });
       }
+      // Meta Pixel AddToCart event
+      if (typeof fbq === 'function') {
+        fbq('track', 'AddToCart', {
+          content_ids: [p.id],
+          content_name: p.name,
+          content_type: 'product',
+          value: p.price,
+          currency: 'TRY'
+        });
+      }
     }
 
     function updateQty(id, source, delta) {
@@ -1815,13 +1829,22 @@
 
     // ─── GO TO MAIN CART (URL param ile sepet aktarımı) ───
     function goToMainCart() {
+      const total = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
       // GA4 begin_checkout event
       if (typeof gtag === 'function') {
-        const total = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
         gtag('event', 'begin_checkout', {
           currency: 'TRY',
           value: total,
           items: cart.map(c => ({ item_id: c.id, item_name: c.name, price: c.price, quantity: c.qty, item_category: 'Punch Kırlent' }))
+        });
+      }
+      // Meta Pixel InitiateCheckout event
+      if (typeof fbq === 'function') {
+        fbq('track', 'InitiateCheckout', {
+          content_ids: cart.map(c => c.id),
+          value: total,
+          currency: 'TRY',
+          num_items: cart.reduce((s, c) => s + c.qty, 0)
         });
       }
       if (cart.length === 0) {
